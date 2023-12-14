@@ -39,18 +39,6 @@ def establish_db_engine(*, config: Config) -> Engine:
     return engine
 
 
-# The create_db_session function creates a SQLAlchemy Session, which is the primary interface
-# for persistence operations.
-def create_db_session(*, engine: Engine) -> scoped_session:
-    """Broadly speaking, the Session establishes all conversations with the database.
-
-     It represents a “holding zone” for all the objects which you’ve loaded or
-     associated with it during its lifespan.
-     """
-    return scoped_session(sessionmaker(autocommit=False, autoflush=False, bind=engine))
-
-
-
 def establish_database_session(*, engine: Engine) -> scoped_session:
     """
     This function sets up a SQLAlchemy Session, which is the primary interface for all database operations.
@@ -75,30 +63,49 @@ def establish_database_session(*, engine: Engine) -> scoped_session:
 # The init_database function initializes the database by creating an engine and a session, and attaching
 # the session to the Flask application. It also defines a teardown function to remove the session after the
 # app context ends.
-def init_database(app: Flask, config: Config, db_session=None) -> None:
+def setup_database(app: Flask, config: Config, session=None) -> None:
     """
     This function is responsible for initializing the database by creating an engine and a session,
     and attaching the session to the Flask application. It uses a teardown function  which ensures that resources are properly cleaned up and that subsequent requests will start with a fresh session.
 
     """
 
-    if not db_session:
-        engine = create_db_engine_from_config(config=config)
-        db_session = create_db_session(engine=engine)
-    # attaching the session to the app object, here we are making the session available globally in the application. This means that anywhere in your code where you have access to the app object, you can also access the database session using app.db_session.
-    app.db_session = db_session
+    if session is None:
+        engine = establish_db_engine(config=config)
+        session = establish_database_session(engine=engine)
+    # attaching the session to the app object, here we are making the session available globally in
+    # the application. This means that anywhere in our code where we have access to the app object,
+    # we can also access the database session using app.db_session.
+    app.db_session = session
 
+    # The @app.teardown_appcontext is a decorator that registers the function as a teardown function.
+    # The function shutdown_session(exception=None) is defined to remove the session with db_session.remove().
+    # This ensures that each request starts with a fresh session and there's no cross-talk between requests.
     @app.teardown_appcontext
-    def shutdown_session(exception=None):
-        db_session.remove()
+    def cleanup(exception=None):
+        session.remove()
 
 # The run_migrations function runs the database migrations using Alembic. This is typically done when
 # the application starts, to ensure the database schema is up-to-date.
+# Database migrations are a safe and organized way to update the database as it grows
 def run_migrations():
-    """Run the DB migrations prior to the tests."""
+    """
+    This is a utility function that sets up the environment for Alembic and then runs the database migrations
+    to the latest version.
+    Alembic, which is a lightweight database migration tool for usage with the SQLAlchemy Database Toolkit for Python.
+    It's like a version control system for our database schema. While SQLAlchemy lets us build and change
+    the database directly, Alembic helps manage and apply those changes in a controlled and organized way,
+    especially when multiple people are involved or when we need to maintain a consistent database
+    structure across different environments (like development, testing, and production). It ensures
+    that our machine learning project's data infrastructure can evolve safely and efficiently.
+    """
 
-    # alembic looks for the migrations in the current
-    # directory so we change to the correct directory.
+    # By changing the directory to ROOT, we're ensuring that Alembic has access to all the migration
+    # scripts in our project.
     os.chdir(str(ROOT))
+    # sets up the arguments for Alembic. These arguments tell Alembic to raise an error if something
+    # goes wrong (--raiseerr), to apply the migrations up to the latest version (upgrade), and to use
+    # the "head" version, which is the latest revision in the migration scripts.
     alembicArgs = ["--raiseerr", "upgrade", "head"]
+    # Run the migrations with the specified arguments.
     alembic.config.main(argv=alembicArgs)
