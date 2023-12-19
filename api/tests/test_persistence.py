@@ -9,9 +9,15 @@ from project.api import (
 )
 
 
-# parameterizationa allows us to try many combinations of data
-# within the same test, see the pytest docs for details:
-# https://docs.pytest.org/en/latest/parametrize.html
+# The function test_data_access checks the functionality of the PredictionPersistence class, which
+# is responsible for saving prediction data to the database.
+# The @pytest.mark.parametrize decorator is used to run the test with different parameters. In this
+# case, it's testing the persistence of predictions for two different types of models: Gradient Boosting
+# and Lasso.
+# The parameter model_type will take the values ModelType.GRADIENT_BOOSTING and ModelType.LASSO during the tests.
+# The parameter model will take the corresponding SQLAlchemy model classes GradientBoostingModelPredictions
+# and LassoModelPredictions.
+# test_inputs_df is a fixture that provides the test input data as a pandas DataFrame.
 @pytest.mark.parametrize(
     "model_type, model,",
     (
@@ -20,9 +26,14 @@ from project.api import (
     ),
 )
 def test_data_access(model_type, model, test_inputs_df):
-    # Given
-    # We mock the database session
+
+    # The mock_session is a mock object created to simulate the database session. It uses
+    # MagicMock is a specific tool from the mock toolbox. It's like a magic wand that can create a
+    # fake version of almost anything. When you use it, you get something that looks and behaves
+    # like the real thing, but it's actually just pretend.
     mock_session = mock.MagicMock()
+
+    # _persistence is an instance of PredictionPersistence that is initialized with the mock_session.
     _persistence = PredictionPersistence(db_session=mock_session)
 
     # When
@@ -30,7 +41,12 @@ def test_data_access(model_type, model, test_inputs_df):
         db_model=model_type, input_data=test_inputs_df.to_dict(orient="records")
     )
 
-    # Then
+    # The test checks that mock_session.commit is called once, which would commit(save) the transaction
+    # to the database if it were a real session.
     assert mock_session.commit.call_count == 1
+
+    # It also checks that mock_session.add is called once, which would add a new record to the session.
     assert mock_session.add.call_count == 1
+
+    # It asserts that the object added to the session is an instance of the correct model class.
     assert isinstance(mock_session.add.call_args[0][0], model)

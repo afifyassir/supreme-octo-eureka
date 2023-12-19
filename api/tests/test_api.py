@@ -144,28 +144,39 @@ def test_prediction_validation(
     data = json.loads(response.data)
     assert data == expected_error
 
-# Ensures that the predictions are saved to the database by checking the count before and after a request.
+# The function test_prediction_data_saved is a test case designed to verify that the machine
+# learning API correctly saves prediction data to the database
 @pytest.mark.integration
 def test_prediction_data_saved(client, app, test_inputs_df):
-    # Given
+
+    # Querying the database to get the current count of records in the GradientBoostingModelPredictions
+    # and LassoModelPredictions tables.
     initial_gradient_count = app.db_session.query(
         GradientBoostingModelPredictions
     ).count()
     initial_lasso_count = app.db_session.query(LassoModelPredictions).count()
 
-    # When
+    # The test sends a POST request to the /v1/predictions/regression endpoint of the API using the
+    # client. This request includes the test input data (test_inputs_df) converted to JSON format.
+    # The API is expected to process this data, make predictions using the regression model, and save
+    # the results to the database.
     response = client.post(
         "/v1/predictions/regression", json=test_inputs_df.to_dict(orient="records")
     )
 
-    # Then
+    # Checking that the response status code is 200, indicating that the request was successful.
     assert response.status_code == 200
+
+    # Querying the LassoModelPredictions table again to check if the count has increased by one, which
+    # would mean that a new record has been successfully added.
     assert (
         app.db_session.query(LassoModelPredictions).count() == initial_lasso_count + 1
     )
 
-    # The gradient prediction save occurs on a separate async thread which can take
-    # time to complete. We pause the test briefly to allow the save operation to finish.
+    # Since the GradientBoostingModelPredictions save operation occurs on a separate asynchronous
+    # thread, the function waits for 2 seconds using time.sleep(2) to give the operation time to complete.
+    # After the pause, it checks that the count of the GradientBoostingModelPredictions table has also
+    # increased by one.
     time.sleep(2)
     assert (
         app.db_session.query(GradientBoostingModelPredictions).count()
