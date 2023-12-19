@@ -11,7 +11,14 @@ from project.api import (
 )
 from gradient_boosting_model.processing.data_management import load_dataset
 
-
+# Checks if the root endpoint / is healthy by asserting a 200 OK status code and the expected response body.
+# The decorator @pytest.mark.integration marks the test as an integration test, meaning it tests how different pieces of
+# the application interact with each other, in this case, how the API endpoint interacts with
+# the machine learning model and the data it receives.
+# while the @pytest.mark.integration decorator is not strictly necessary for the code to function, it
+# is a best practice that enhances the maintainability, organization, and execution control of the test
+# suite. It's part of writing clean, understandable, and manageable code, especially as the size of the
+# codebase and the number of tests grow.
 @pytest.mark.integration
 def test_health_endpoint(client):
     # When
@@ -23,6 +30,21 @@ def test_health_endpoint(client):
 
 
 @pytest.mark.integration
+# The @pytest.mark.parametrize(...) decorator is used for parameterization, which allows running
+# the same test function multiple times with different arguments. Here, it's used to test two
+# different API endpoints: v1/predictions/regression and v1/predictions/gradient. For each endpoint,
+# there's an expected number of predictions that should be returned by the API.4
+# The variable expected_no_predictions holds the expected number of predictions the API
+# should return after filtering out certain rows. For the regression endpoint, 1451 predictions
+# are expected, and for the gradient endpoint, 1457 predictions are expected.
+# client is a fixture that provides a test client for the application. It's used to make requests
+# to the API endpoints.
+# The decorator takes two main parameters:
+#  1. A string that specifies the names of the arguments that you want to vary for each test run.
+#  These names should match the parameters used in the test function.
+#  2. A list of tuples, where each tuple contains a set of values that correspond to the argument names.
+#  Each tuple represents a different test case.
+# Both square brackets [] and parentheses () can be used to define a list of tuples in Python.
 @pytest.mark.parametrize(
     "api_endpoint, expected_no_predictions",
     (
@@ -43,23 +65,30 @@ def test_prediction_endpoint(
     api_endpoint, expected_no_predictions, client, test_inputs_df
 ):
     # Given
-    # Load the test dataset which is included in the model package
-    test_inputs_df = load_dataset(file_name="test.csv")  # dataframe
+    # The test data is loaded.
+    test_inputs_df = load_dataset(file_name="test.csv")
+
+    # If the endpoint being tested is the regression model, the column names in the DataFrame are
+    # renamed according to the SECONDARY_VARIABLES_TO_RENAME mapping. This is done to match the
+    # expected input format of the regression model.
     if api_endpoint == "v1/predictions/regression":
-        # adjust column names to those expected by the secondary model
         test_inputs_df.rename(columns=SECONDARY_VARIABLES_TO_RENAME, inplace=True)
 
-    # When
+    # A POST request is made to the API endpoint using the client. The test input data is
+    # converted to a list of dictionaries (orient="records") and sent as JSON in the request body.
     response = client.post(api_endpoint, json=test_inputs_df.to_dict(orient="records"))
 
-    # Then
+    # Checking that the response status code is 200 OK, indicating a successful request.
     assert response.status_code == 200
+    # Parsing the response data from JSON and asserts that there are no errors in the response.
     data = json.loads(response.data)
     assert data["errors"] is None
+    # Asserting that the number of predictions returned by the API matches the expected
+    # number (expected_no_predictions).
     assert len(data["predictions"]) == expected_no_predictions
 
 
-# parameterizationa allows us to try many combinations of data
+# parameterizations allows us to try many combinations of data
 # within the same test, see the pytest docs for details:
 # https://docs.pytest.org/en/latest/parametrize.html
 @pytest.mark.parametrize(
@@ -86,27 +115,36 @@ def test_prediction_endpoint(
         ("LotArea", "", 2, {"2": {"LotArea": ["Not a valid integer."]}}),
     ),
 )
+# The function test_prediction_validation is designed to ensure that the machine learning API
+# properly validates the input data it receives. It checks that the API returns the correct error
+# messages when given invalid data.
+# The function is set up to test four different scenarios, each with a different type of validation error:
+#    - A string is expected, but an integer is provided (BldgType).
+#    - A float is expected, but a string is provided (GarageArea).
+#    - A non-null value is expected, but np.nan (a missing value) is provided (CentralAir).
+#    - An integer is expected, but an empty string is provided (LotArea).
 @pytest.mark.integration
 def test_prediction_validation(
     field, field_value, index, expected_error, client, test_inputs_df
 ):
-    # Given
-    # Check gradient_boosting_model.processing.validation import HouseDataInputSchema
-    # and you will see the expected values for the inputs to the house price prediction
-    # model. In this test, inputs are changed to incorrect values to check the validation.
+    # The test function modifies the test_inputs_df DataFrame by inserting the incorrect value
+    # at the specified index and field.
     test_inputs_df.loc[index, field] = field_value
 
-    # When
+    # It then sends a POST request to the /v1/predictions/gradient endpoint with the modified data.
     response = client.post(
         "/v1/predictions/gradient", json=test_inputs_df.to_dict(orient="records")
     )
 
-    # Then
+    # The function checks that the response status code is 400, indicating a client error due to
+    # invalid input data.
     assert response.status_code == 400
+    # It parses the response data from JSON and compares it to the expected_error to ensure that the
+    # API returned the correct validation error message.
     data = json.loads(response.data)
     assert data == expected_error
 
-
+# Ensures that the predictions are saved to the database by checking the count before and after a request.
 @pytest.mark.integration
 def test_prediction_data_saved(client, app, test_inputs_df):
     # Given
