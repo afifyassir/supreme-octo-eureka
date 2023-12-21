@@ -1,6 +1,9 @@
 version: '3'
 services:
   ml_api_test:
+    # Specifies the name and tag for the image that will be built using the Dockerfile.test.
+    # This name and tag will be assigned to the image after it is built, making it easier to
+    # identify and manage.
     image: christophergs/ml_api:master
     build:
       context: ..
