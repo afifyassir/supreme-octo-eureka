@@ -1,42 +1,59 @@
-# my global config
+# This section defines the global settings for the Prometheus server. This is the top-level configuration that
+# applies to various aspects of the Prometheus server. It sets defaults that can be overridden by other configurations
+# in the file.
 global:
-  scrape_interval:     15s # By default, scrape targets every 15 seconds.
-  evaluation_interval: 15s # By default, scrape targets every 15 seconds.
-  # scrape_timeout is set to the global default (10s).
+  # How often Prometheus scrapes metrics from the targets. Here, it’s set to every 15 seconds by default.
+  scrape_interval: 15s
+  # This setting controls how often Prometheus evaluates alerting and recording rules. Alerting rules allow
+  # us to define conditions under which alerts should be fired, while recording rules allow us to precompute
+  # frequently needed or computationally expensive expressions and save their result as a new set of time series.
+  # Like scrape_interval, this is also set to every 15 seconds by default in our configuration. This means that
+  # every 15 seconds, Prometheus checks if the conditions for firing alerts are met or if it needs to update the time
+  # series for any recording rules.
+  evaluation_interval: 15s
 
-  # Attach these labels to any time series or alerts when communicating with
-  # external systems (federation, remote storage, Alertmanager).
+
+  # external_labels are key-value pairs that provide additional information that can be used when interacting
+  # with external systems. They are added to any time series or alerts before they are sent to remote storage, or the
+  # Alertmanager. In our configuration, there is an external_label with the key monitor and the value 'my-project'.
+  # This label can be useful for distinguishing between different Prometheus servers or projects when aggregating
+  # data from multiple sources or routing alerts to the appropriate channels.
   external_labels:
       monitor: 'my-project'
 
-# A scrape configuration containing exactly one endpoint to scrape:
-# Here it's Prometheus itself.
+# This section of the configuration file is where you define the specific targets from which Prometheus will collect metrics.
+# Each target is defined within a “job,” which groups together a set of similar targets for scraping.
 scrape_configs:
-  # The job name is added as a label `job=<job_name>` to any timeseries scraped from this config.
+  # This job is responsible for scraping metrics from the Prometheus server itself. It’s common practice to monitor
+  # the monitoring system to ensure it’s functioning correctly.
   - job_name: 'prometheus'
-
-    # Override the global default and scrape targets from this job every 5 seconds.
+    # This setting overrides the global default (15s) and tells Prometheus to scrape metrics from this job every 5 seconds.
+    # This higher frequency ensures that the data about Prometheus’s own performance is up-to-date and accurate.
     scrape_interval: 5s
 
-    # metrics_path defaults to '/metrics'
-    # scheme defaults to 'http'.
-
+    # This specifies the actual target from which Prometheus will scrape metrics. In this case, it’s scraping from
+    # the Prometheus server running on localhost at port 9090.
     static_configs:
          - targets: ['prometheus:9090']
+  # This job is set up to scrape metrics from the machine learning API service.
   - job_name: 'ml_api'
-
-    # Override the global default and scrape targets from this job every 5 seconds.
+    # Similar to the previous job, this setting specifies that Prometheus should scrape metrics every 5 seconds,
+    # allowing for fine-grained monitoring of the ML API service.
     scrape_interval: 5s
 
-    # metrics_path defaults to '/metrics'
-    # scheme defaults to 'http'.
+    # The target here is the ML API service, which is expected to be running on localhost at port 5000. The
+    # ML API service should expose metrics at the default /metrics endpoint for Prometheus to collect.
     static_configs:
         - targets: ['ml_api:5000']
 
+  # This job configures Prometheus to scrape metrics from cAdvisor, which is a tool that provides container-level metrics.
   - job_name: 'cadvisor'
 
-    # Override the global default and scrape targets from this job every 5 seconds.
+    # Again, this job will have its metrics scraped every 5 seconds, providing frequent updates on the
+    # performance of the containers.
     scrape_interval: 5s
 
+    # The target is the cAdvisor service, typically running on localhost at port 8080. cAdvisor exposes container
+    # metrics that Prometheus can collect and use for monitoring.
     static_configs:
       - targets: ['cadvisor:8080']
